@@ -1,16 +1,28 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, TrendingUp, Sparkles, ArrowRight, Zap, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ToolCard } from '@/components/directory/tool-card';
-import { CategoryCard } from '@/components/directory/category-card';
-import { Newsletter } from '@/components/directory/newsletter';
-import { AdBanner, AdSidebar } from '@/components/directory/ad-banner';
-import { ToolModal } from '@/components/directory/tool-modal';
+import { useState, useEffect } from 'react';
+import { 
+  Search, 
+  Sparkles, 
+  TrendingUp, 
+  ArrowRight, 
+  Zap, 
+  X,
+  Star,
+  ExternalLink,
+  Heart,
+  PenTool,
+  Image,
+  Video,
+  Music,
+  MessageSquare,
+  Code,
+  Target,
+  Briefcase,
+  ChevronDown
+} from 'lucide-react';
 
+// Types
 interface Tool {
   id: string;
   name: string;
@@ -48,505 +60,507 @@ interface ClientPageProps {
   initialCategories: Category[];
 }
 
-type ViewMode = 'home' | 'category' | 'search';
+// Category icons map
+const categoryIcons: Record<string, any> = {
+  'AI Writing': PenTool,
+  'AI Image': Image,
+  'AI Video': Video,
+  'AI Audio': Music,
+  'AI Chatbots': MessageSquare,
+  'AI Coding': Code,
+  'AI Marketing': Target,
+  'AI Productivity': Briefcase,
+};
+
+// Pricing badge styles
+const pricingStyles: Record<string, string> = {
+  FREE: 'badge-free',
+  FREEMIUM: 'badge-freemium',
+  PAID: 'badge-paid',
+  FREE_TRIAL: 'badge-freemium',
+  OPEN_SOURCE: 'badge-opensource',
+};
+
+const pricingLabels: Record<string, string> = {
+  FREE: 'Free',
+  FREEMIUM: 'Freemium',
+  PAID: 'Paid',
+  FREE_TRIAL: 'Free Trial',
+  OPEN_SOURCE: 'Open Source',
+};
+
+// Category colors
+const categoryColors: Record<string, { bg: string; icon: string }> = {
+  'AI Writing': { bg: '#ECFDF5', icon: '#059669' },
+  'AI Image': { bg: '#F3E8FF', icon: '#9333EA' },
+  'AI Video': { bg: '#FEE2E2', icon: '#DC2626' },
+  'AI Audio': { bg: '#FEF3C7', icon: '#D97706' },
+  'AI Chatbots': { bg: '#EFF6FF', icon: '#2563EB' },
+  'AI Coding': { bg: '#CFFAFE', icon: '#0891B2' },
+  'AI Marketing': { bg: '#FFF7ED', icon: '#EA580C' },
+  'AI Productivity': { bg: '#EDE9FE', icon: '#7C3AED' },
+};
 
 export function ClientPage({ initialTools, initialFeaturedTools, initialCategories }: ClientPageProps) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [tools] = useState<Tool[]>(initialTools);
-  const [featuredTools] = useState<Tool[]>(initialFeaturedTools);
   const [categories] = useState<Category[]>(initialCategories);
-
-  // View state
-  const [viewMode, setViewMode] = useState<ViewMode>('home');
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedPricing, setSelectedPricing] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [sortBy, setSortBy] = useState<'popular' | 'name'>('popular');
 
-  // Filter state
-  const [pricingFilter, setPricingFilter] = useState<string>('all');
+  // Filter and sort tools
+  const filteredTools = tools
+    .filter(tool => {
+      if (selectedCategory && tool.category?.slug !== selectedCategory) return false;
+      if (selectedPricing && tool.pricing !== selectedPricing) return false;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          tool.name.toLowerCase().includes(query) ||
+          tool.tagline.toLowerCase().includes(query) ||
+          tool.description.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      return b.viewCount - a.viewCount;
+    });
 
-  // Filter tools based on current view and filters
-  const getFilteredTools = () => {
-    let filtered = [...tools];
+  const featuredTools = tools.filter(t => t.isFeatured);
 
-    // Filter by category
-    if (viewMode === 'category' && selectedCategory) {
-      filtered = filtered.filter(
-        (tool) => tool.category?.slug === selectedCategory.slug
-      );
-    }
-
-    // Filter by search
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (tool) =>
-          tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tool.tagline.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tool.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Filter by pricing
-    if (pricingFilter !== 'all') {
-      filtered = filtered.filter((tool) => tool.pricing === pricingFilter);
-    }
-
-    return filtered;
+  // Toggle favorite
+  const toggleFavorite = (e: React.MouseEvent, toolId: string) => {
+    e.stopPropagation();
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(toolId)) {
+        next.delete(toolId);
+      } else {
+        next.add(toolId);
+      }
+      return next;
+    });
   };
 
-  const filteredTools = getFilteredTools();
-
-  const handleCategoryClick = (category: Category) => {
-    setSelectedCategory(category);
-    setViewMode('category');
-    setSearchQuery('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleToolClick = (tool: Tool) => {
+  // Open tool modal
+  const openTool = (tool: Tool) => {
     setSelectedTool(tool);
-    setModalOpen(true);
+    setShowModal(true);
   };
 
-  const handleBackToHome = () => {
-    setViewMode('home');
-    setSelectedCategory(null);
-    setSearchQuery('');
-  };
-
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query) {
-      setViewMode('search');
-    } else if (viewMode === 'search') {
-      setViewMode('home');
-    }
+  // Get tool initials
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex flex-col" style={{ background: '#FAFBFC' }}>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <button
-              onClick={handleBackToHome}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-xl">AI Directory</span>
-            </button>
-
-            {/* Navigation */}
-            <nav className="hidden md:flex items-center gap-6">
-              <button
-                onClick={() => {
-                  document.getElementById('featured')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="text-sm font-medium hover:text-primary transition-colors"
-              >
-                Featured
-              </button>
-              <button
-                onClick={() => {
-                  document.getElementById('categories')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="text-sm font-medium hover:text-primary transition-colors"
-              >
-                Categories
-              </button>
-              <button
-                onClick={() => {
-                  document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="text-sm font-medium hover:text-primary transition-colors"
-              >
-                All Tools
-              </button>
-            </nav>
-
-            {/* CTA */}
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" className="hidden sm:flex" asChild>
-                <a href="mailto:submit@aidirectory.com?subject=Submit AI Tool">Sign In</a>
-              </Button>
-              <Button size="sm" className="gap-1.5" asChild>
-                <a href="mailto:submit@aidirectory.com?subject=Submit AI Tool">
-                  <Sparkles className="w-4 h-4" />
-                  Submit Tool
-                </a>
-              </Button>
+      <header className="header">
+        <div className="container flex items-center justify-between h-16">
+          <a href="/" className="flex items-center gap-3 group">
+            <div className="logo">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-          </div>
+            <span className="font-bold text-lg" style={{ color: '#1a1a2e' }}>AI Directory</span>
+          </a>
+
+          <nav className="hidden md:flex items-center gap-8">
+            <a href="#tools" className="text-sm font-medium hover:text-purple-600 transition-colors" style={{ color: '#6B7280' }}>
+              All Tools
+            </a>
+            <a href="#categories" className="text-sm font-medium hover:text-purple-600 transition-colors" style={{ color: '#6B7280' }}>
+              Categories
+            </a>
+            <a href="/privacy" className="text-sm font-medium hover:text-purple-600 transition-colors" style={{ color: '#6B7280' }}>
+              Privacy
+            </a>
+          </nav>
+
+          <button className="btn-primary">
+            <Sparkles className="w-4 h-4" />
+            Submit Tool
+          </button>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      {/* Hero */}
+      <section className="hero-gradient py-16 md:py-24">
+        <div className="container text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium mb-6" style={{ background: '#F3F0FF', color: '#7C3AED' }}>
+            <TrendingUp className="w-4 h-4" />
+            {tools.length} AI Tools Curated
+          </div>
 
-        <div className="container mx-auto px-4 py-12 md:py-20">
-          <div className="max-w-3xl mx-auto text-center">
-            {/* Badge */}
-            <Badge
-              variant="secondary"
-              className="mb-6 px-4 py-1.5 text-sm font-medium"
-            >
-              <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
-              {tools.length}+ AI Tools & Growing
-            </Badge>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6" style={{ color: '#1a1a2e', lineHeight: 1.1 }}>
+            Find the Best<br />
+            <span style={{ background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              AI Tools
+            </span> for Your Work
+          </h1>
 
-            {/* Headline */}
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
-              Discover the Best{' '}
-              <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                AI Tools
-              </span>{' '}
-              for Your Projects
-            </h1>
+          <p className="text-lg mb-10 max-w-xl mx-auto" style={{ color: '#6B7280' }}>
+            A curated collection of AI tools for writing, design, coding, and productivity. 
+            Discover tools that actually work.
+          </p>
 
-            {/* Subheadline */}
-            <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              The ultimate directory of AI tools for writing, image generation, coding, productivity, and more.
-            </p>
+          {/* Search */}
+          <div className="max-w-xl mx-auto relative mb-8">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: '#9CA3AF' }} />
+            <input
+              type="text"
+              placeholder="Search tools... (e.g., 'chatgpt', 'image generator')"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-5 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100"
+              >
+                <X className="w-4 h-4" style={{ color: '#9CA3AF' }} />
+              </button>
+            )}
+          </div>
 
-            {/* Search */}
-            <div className="relative max-w-xl mx-auto">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search AI tools... (e.g., 'image generator', 'writing')"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-12 h-12 text-base shadow-lg border-2 focus:border-primary"
-              />
-              {searchQuery && (
+          {/* Quick searches */}
+          <div className="flex flex-wrap justify-center gap-2">
+            <span className="text-sm" style={{ color: '#9CA3AF' }}>Popular:</span>
+            {['ChatGPT', 'Midjourney', 'Claude', 'Cursor', 'ElevenLabs'].map(name => (
+              <button
+                key={name}
+                onClick={() => setSearchQuery(name)}
+                className="text-sm font-medium px-3 py-1 rounded-full hover:bg-purple-50 transition-colors"
+                style={{ color: '#7C3AED' }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Categories */}
+      <section id="categories" className="py-12 bg-white border-b" style={{ borderColor: '#E5E7EB' }}>
+        <div className="container">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold" style={{ color: '#1a1a2e' }}>Categories</h2>
+            {selectedCategory && (
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="text-sm font-medium flex items-center gap-1"
+                style={{ color: '#7C3AED' }}
+              >
+                <X className="w-4 h-4" />
+                Clear filter
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            {categories.map(category => {
+              const Icon = categoryIcons[category.name] || Sparkles;
+              const colors = categoryColors[category.name] || { bg: '#F3F0FF', icon: '#7C3AED' };
+              const count = category._count?.tools || category.toolCount || 0;
+              const isActive = selectedCategory === category.slug;
+
+              return (
                 <button
-                  onClick={() => handleSearch('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  key={category.id}
+                  onClick={() => setSelectedCategory(isActive ? null : category.slug)}
+                  className={`category-card ${isActive ? 'active' : ''}`}
                 >
-                  <X className="w-4 h-4" />
+                  <div className="icon-container" style={{ background: colors.bg }}>
+                    <Icon className="w-5 h-5" style={{ color: colors.icon }} />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-medium text-sm" style={{ color: '#1a1a2e' }}>
+                      {category.name.replace('AI ', '')}
+                    </div>
+                    <div className="text-xs" style={{ color: '#9CA3AF' }}>{count} tools</div>
+                  </div>
                 </button>
-              )}
-            </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-            {/* Quick Links */}
-            <div className="flex flex-wrap justify-center gap-2 mt-4">
-              <span className="text-sm text-muted-foreground">Popular:</span>
-              {['ChatGPT', 'Midjourney', 'Claude', 'ElevenLabs'].map((tool) => (
+      {/* Filters */}
+      <section className="py-6 border-b" style={{ borderColor: '#E5E7EB' }}>
+        <div className="container">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Pricing:</span>
+              {[
+                { value: null, label: 'All' },
+                { value: 'FREE', label: 'Free' },
+                { value: 'FREEMIUM', label: 'Freemium' },
+                { value: 'PAID', label: 'Paid' },
+                { value: 'OPEN_SOURCE', label: 'Open Source' },
+              ].map(filter => (
                 <button
-                  key={tool}
-                  onClick={() => handleSearch(tool)}
-                  className="text-sm font-medium text-primary hover:underline"
+                  key={filter.label}
+                  onClick={() => setSelectedPricing(filter.value)}
+                  className={`filter-chip ${selectedPricing === filter.value ? 'active' : ''}`}
                 >
-                  {tool}
+                  {filter.label}
                 </button>
               ))}
             </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'popular' | 'name')}
+                className="filter-chip pr-8"
+                style={{ appearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%236B7280\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '16px' }}
+              >
+                <option value="popular">Most Popular</option>
+                <option value="name">Alphabetical</option>
+              </select>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Category View Header */}
-      {viewMode === 'category' && selectedCategory && (
-        <section className="container mx-auto px-4 py-6">
-          <button
-            onClick={handleBackToHome}
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mb-4"
-          >
-            <ArrowRight className="w-4 h-4 rotate-180" />
-            Back to All Tools
-          </button>
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl md:text-3xl font-bold">
-              {selectedCategory.name}
-            </h2>
-            <Badge variant="secondary">
-              {filteredTools.length} tools
-            </Badge>
-          </div>
-          {selectedCategory.description && (
-            <p className="text-muted-foreground mt-2">
-              {selectedCategory.description}
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* Search Results Header */}
-      {viewMode === 'search' && searchQuery && (
-        <section className="container mx-auto px-4 py-6">
-          <button
-            onClick={handleBackToHome}
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mb-4"
-          >
-            <ArrowRight className="w-4 h-4 rotate-180" />
-            Clear search
-          </button>
-          <h2 className="text-2xl md:text-3xl font-bold">
-            Search Results for "{searchQuery}"
-          </h2>
-          <p className="text-muted-foreground mt-1">
-            Found {filteredTools.length} tools
-          </p>
-        </section>
-      )}
-
-      {/* Ad Banner */}
-      {(viewMode === 'home' || viewMode === 'category') && (
-        <div className="container mx-auto px-4 mb-8">
-          <AdBanner />
-        </div>
-      )}
-
-      {/* Featured Tools (Home only) */}
-      {viewMode === 'home' && (
-        <section id="featured" className="container mx-auto px-4 py-12">
+      {/* Tools Grid */}
+      <section id="tools" className="py-12 flex-1">
+        <div className="container">
+          {/* Results header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                ⭐ Featured Tools
+              <h2 className="section-title">
+                {selectedCategory 
+                  ? categories.find(c => c.slug === selectedCategory)?.name || 'Tools'
+                  : searchQuery 
+                    ? `Results for "${searchQuery}"`
+                    : 'All Tools'
+                }
               </h2>
-              <p className="text-muted-foreground">
-                Hand-picked AI tools chosen by our editors
-              </p>
+              <p className="section-subtitle">{filteredTools.length} tools found</p>
             </div>
-            <Button variant="outline" className="hidden sm:flex gap-1.5" onClick={() => document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' })}>
-              View All
-              <ArrowRight className="w-4 h-4" />
-            </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredTools.map((tool) => (
-              <button
-                key={tool.id}
-                onClick={() => handleToolClick(tool)}
-                className="text-left w-full"
-              >
-                <ToolCard tool={tool} featured />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+          {/* Tools */}
+          {filteredTools.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="text-4xl mb-4">🔍</div>
+              <p className="text-lg font-medium" style={{ color: '#1a1a2e' }}>No tools found</p>
+              <p className="text-sm" style={{ color: '#6B7280' }}>Try adjusting your search or filters</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredTools.map((tool, index) => {
+                const colors = tool.category ? categoryColors[tool.category.name] : { bg: '#F3F0FF', icon: '#7C3AED' };
+                const isFavorite = favorites.has(tool.id);
 
-      {/* Categories (Home only) */}
-      {viewMode === 'home' && (
-        <section id="categories" className="container mx-auto px-4 py-12">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold mb-2">
-              Browse by Category
-            </h2>
-            <p className="text-muted-foreground">
-              Find AI tools organized by what they do best
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleCategoryClick(category)}
-                className="text-left w-full"
-              >
-                <CategoryCard category={category} />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* All Tools / Category Tools / Search Results */}
-      <section id="tools" className="container mx-auto px-4 py-12">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Main Content */}
-          <div className="flex-1">
-            {viewMode === 'home' && (
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                    🔥 Trending AI Tools
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Most popular tools this month
-                  </p>
-                </div>
-
-                {/* Pricing Filter */}
-                <div className="hidden sm:flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Filter:</span>
-                  <select
-                    value={pricingFilter}
-                    onChange={(e) => setPricingFilter(e.target.value)}
-                    className="text-sm border rounded-lg px-3 py-1.5 bg-background"
-                  >
-                    <option value="all">All Pricing</option>
-                    <option value="FREE">Free</option>
-                    <option value="FREEMIUM">Freemium</option>
-                    <option value="PAID">Paid</option>
-                    <option value="OPEN_SOURCE">Open Source</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Mobile Filter */}
-            {viewMode !== 'home' && (
-              <div className="flex sm:hidden items-center gap-2 mb-6">
-                <span className="text-sm text-muted-foreground">Filter:</span>
-                <select
-                  value={pricingFilter}
-                  onChange={(e) => setPricingFilter(e.target.value)}
-                  className="text-sm border rounded-lg px-3 py-1.5 bg-background flex-1"
-                >
-                  <option value="all">All Pricing</option>
-                  <option value="FREE">Free</option>
-                  <option value="FREEMIUM">Freemium</option>
-                  <option value="PAID">Paid</option>
-                  <option value="OPEN_SOURCE">Open Source</option>
-                </select>
-              </div>
-            )}
-
-            {filteredTools.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  No tools found. Try a different search or filter.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredTools.map((tool) => (
-                  <button
+                return (
+                  <div
                     key={tool.id}
-                    onClick={() => handleToolClick(tool)}
-                    className="text-left w-full"
+                    onClick={() => openTool(tool)}
+                    className="tool-card animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <ToolCard tool={tool} />
-                  </button>
-                ))}
-              </div>
-            )}
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white"
+                          style={{ background: `linear-gradient(135deg, ${colors.icon}, ${colors.icon}CC)` }}
+                        >
+                          {getInitials(tool.name)}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-base" style={{ color: '#1a1a2e' }}>{tool.name}</h3>
+                          <div className="flex items-center gap-2">
+                            {tool.category && (
+                              <span className="text-xs" style={{ color: '#9CA3AF' }}>
+                                {tool.category.name.replace('AI ', '')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => toggleFavorite(e, tool.id)}
+                        className="p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <Heart 
+                          className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`}
+                          style={{ color: isFavorite ? undefined : '#D1D5DB' }}
+                        />
+                      </button>
+                    </div>
 
-            {/* Load More */}
-            {filteredTools.length > 0 && (
-              <div className="text-center mt-8">
-                <Button variant="outline" size="lg" className="gap-1.5">
-                  Load More Tools
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-          </div>
+                    {/* Description */}
+                    <p className="text-sm mb-4 line-clamp-2" style={{ color: '#6B7280' }}>
+                      {tool.tagline}
+                    </p>
 
-          {/* Sidebar */}
-          <div className="lg:w-80">
-            <AdSidebar />
-          </div>
-        </div>
-      </section>
-
-      {/* Newsletter */}
-      <section className="container mx-auto px-4 py-12">
-        <Newsletter />
-      </section>
-
-      {/* Stats Section */}
-      <section className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-2 gap-6 max-w-lg mx-auto">
-          {[
-            { label: 'AI Tools Listed', value: `${tools.length}` },
-            { label: 'Categories', value: `${categories.length}` },
-          ].map((stat, i) => (
-            <div
-              key={i}
-              className="text-center p-6 rounded-xl bg-muted/50 border border-border/50"
-            >
-              <div className="text-3xl md:text-4xl font-bold text-primary mb-1">
-                {stat.value}
-              </div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: '#F3F4F6' }}>
+                      <span className={`badge ${pricingStyles[tool.pricing] || 'badge-freemium'}`}>
+                        {pricingLabels[tool.pricing] || tool.pricing}
+                      </span>
+                      <div className="flex items-center gap-3 text-xs" style={{ color: '#9CA3AF' }}>
+                        <span className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5" />
+                          {tool.upvoteCount}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          {tool.viewCount.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       </section>
+
+      {/* Tool Modal */}
+      {showModal && selectedTool && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={() => setShowModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b" style={{ borderColor: '#E5E7EB' }}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-white text-lg"
+                    style={{ background: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' }}
+                  >
+                    {getInitials(selectedTool.name)}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold" style={{ color: '#1a1a2e' }}>{selectedTool.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`badge ${pricingStyles[selectedTool.pricing] || 'badge-freemium'}`}>
+                        {pricingLabels[selectedTool.pricing] || selectedTool.pricing}
+                      </span>
+                      {selectedTool.category && (
+                        <span className="text-xs" style={{ color: '#9CA3AF' }}>
+                          {selectedTool.category.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" style={{ color: '#6B7280' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              <p className="text-base mb-6" style={{ color: '#374151' }}>
+                {selectedTool.description}
+              </p>
+
+              {selectedTool.priceDetails && (
+                <div className="mb-6 p-4 rounded-xl" style={{ background: '#F9FAFB' }}>
+                  <div className="text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Pricing</div>
+                  <div className="font-semibold" style={{ color: '#1a1a2e' }}>{selectedTool.priceDetails}</div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4 mb-6 text-sm" style={{ color: '#6B7280' }}>
+                <span className="flex items-center gap-1">
+                  <Star className="w-4 h-4" />
+                  {selectedTool.upvoteCount} upvotes
+                </span>
+                <span className="flex items-center gap-1">
+                  <TrendingUp className="w-4 h-4" />
+                  {selectedTool.viewCount.toLocaleString()} views
+                </span>
+              </div>
+
+              <a
+                href={selectedTool.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary w-full justify-center"
+              >
+                Visit Website
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
-      <footer className="border-t border-border/50 bg-muted/30">
-        <div className="container mx-auto px-4 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-primary-foreground" />
+      <footer className="footer">
+        <div className="container">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="logo">
+                  <Zap className="w-5 h-5 text-white" />
                 </div>
-                <span className="font-bold text-xl">AI Directory</span>
+                <span className="font-bold text-lg text-white">AI Directory</span>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">
-                The ultimate directory for discovering AI tools. Find the perfect tool for your next project.
+              <p className="text-sm" style={{ color: '#9CA3AF' }}>
+                A curated collection of AI tools to help you work smarter.
               </p>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><button onClick={handleBackToHome} className="hover:text-primary">All Tools</button></li>
-                <li><button onClick={() => document.getElementById('categories')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-primary">Categories</button></li>
-                <li><button onClick={() => document.getElementById('featured')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-primary">Featured</button></li>
+              <h4 className="font-semibold mb-4 text-white">Browse</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#tools">All Tools</a></li>
+                <li><a href="#categories">Categories</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">Categories</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {categories.slice(0, 4).map((cat) => (
-                  <li key={cat.id}>
-                    <button
-                      onClick={() => handleCategoryClick(cat)}
-                      className="hover:text-primary"
-                    >
-                      {cat.name}
-                    </button>
-                  </li>
-                ))}
+              <h4 className="font-semibold mb-4 text-white">Legal</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="/privacy">Privacy Policy</a></li>
+                <li><a href="/terms">Terms of Service</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">For Creators</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="mailto:submit@aidirectory.com?subject=Submit AI Tool" className="hover:text-primary transition-colors">Submit Tool</a></li>
-                <li><a href="mailto:advertise@aidirectory.com?subject=Featured Listing" className="hover:text-primary transition-colors">Featured Listing</a></li>
-                <li><a href="mailto:advertise@aidirectory.com?subject=Advertising" className="hover:text-primary transition-colors">Advertise</a></li>
-                <li><a href="mailto:api@aidirectory.com?subject=API Access Request" className="hover:text-primary transition-colors">API Access</a></li>
+              <h4 className="font-semibold mb-4 text-white">Contact</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="mailto:contact@aidirectory.com">Email Us</a></li>
               </ul>
             </div>
           </div>
 
-          <div className="mt-12 pt-8 border-t border-border/50 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            <p className="text-sm" style={{ color: '#6B7280' }}>
               © 2026 AI Directory. All rights reserved.
             </p>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <a href="/privacy" className="hover:text-primary transition-colors">Privacy</a>
-              <a href="/terms" className="hover:text-primary transition-colors">Terms</a>
-              <a href="mailto:contact@aidirectory.com" className="hover:text-primary transition-colors">Contact</a>
-            </div>
+            <p className="text-sm" style={{ color: '#6B7280' }}>
+              Made with care for the AI community.
+            </p>
           </div>
         </div>
       </footer>
-
-      {/* Tool Detail Modal */}
-      <ToolModal
-        tool={selectedTool}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-      />
     </div>
   );
 }
