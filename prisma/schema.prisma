@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Categories for organizing AI tools
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  color       String?  // Tailwind color class
+  order       Int      @default(0)
+  tools       Tool[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// AI Tool listings
+model Tool {
+  id              String     @id @default(cuid())
+  name            String
+  slug            String     @unique
+  tagline         String     // Short description
+  description     String     // Full description
+  websiteUrl      String
+  logoUrl         String?
+  imageUrl        String?
+  pricing         Pricing    @default(FREEMIUM)
+  priceDetails    String?    // e.g., "$19/month"
+  
+  // Featured/Premium listings (monetization)
+  isFeatured      Boolean    @default(false)
+  featuredUntil   DateTime?
+  featuredOrder   Int        @default(0)
+  
+  // Affiliate monetization
+  affiliateUrl    String?    // Affiliate link
+  affiliateCode   String?
+  
+  // Stats & Social
+  viewCount       Int        @default(0)
+  clickCount      Int        @default(0)
+  upvoteCount     Int        @default(0)
+  
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+  
+  // Relations
+  categoryId      String
+  category        Category   @relation(fields: [categoryId], references: [id])
+  tags            Tag[]
+  reviews         Review[]
+  
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+// Tags for flexible filtering
+model Tag {
+  id     String @id @default(cuid())
+  name   String @unique
+  slug   String @unique
+  tools  Tool[]
+}
+
+// Newsletter subscribers (monetization)
+model Subscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  source    String?  // Where they subscribed from
+  createdAt DateTime @default(now())
+}
+
+// User reviews (engagement & SEO)
+model Review {
+  id        String   @id @default(cuid())
+  toolId    String
+  tool      Tool     @relation(fields: [toolId], references: [id])
+  userName  String
+  rating    Int      // 1-5
+  title     String?
+  content   String
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Ad placements (monetization management)
+model AdPlacement {
+  id        String   @id @default(cuid())
+  name      String
+  position  String   // e.g., "homepage-hero", "sidebar", "listing-top"
+  code      String   // Ad HTML/JS code
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+enum Pricing {
+  FREE
+  FREEMIUM
+  PAID
+  FREE_TRIAL
+  OPEN_SOURCE
+}
